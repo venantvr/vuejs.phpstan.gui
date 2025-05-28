@@ -9,14 +9,17 @@
       <div v-if="jsonData" class="mb-6">
         <div class="flex flex-col gap-4">
           <div class="flex flex-col md:flex-row gap-4">
-            <input v-model="searchQuery" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" placeholder="Search errors or files (regex, e.g., error1, error2)" type="text" @input="saveFilters">
+            <div class="w-full md:w-1/3">
+              <input v-model="searchQuery" class="p-2 border rounded w-full dark:bg-gray-800 dark:border-gray-700" placeholder="Search errors or files (regex, e.g., error1, error2)" type="text" @input="saveFilters">
+              <p v-if="searchRegexError" class="text-red-500 dark:text-red-400 text-sm mt-1">{{ searchRegexError }}</p>
+            </div>
             <select v-model="filterType" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
               <option value="">All Error Types</option>
               <option v-for="type in errorTypes" :key="type" :value="type">{{ type }}</option>
             </select>
             <select v-model="filterFile" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
               <option value="">All Files</option>
-              <option v-for="file in Object.keys(jsonData.files || {})" :key="file" :value="file">{{ file }}</option>
+              <option v-for="file in fileOptions" :key="file.fullPath" :value="file.fullPath">{{ file.displayPath }}</option>
             </select>
           </div>
           <div>
@@ -65,7 +68,41 @@ const errorTypes = computed(() => {
       });
     });
   }
-  return Array.from(types);
+  return Array.from(types).sort(); // Sort alphabetically
+});
+
+// Compute common prefix for file paths
+const commonPrefix = computed(() => {
+  if (!jsonData.value?.files) return '';
+  const paths = Object.keys(jsonData.value.files);
+  if (paths.length === 0) return '';
+
+  // Find the shortest path to limit the prefix length
+  const shortestPath = paths.reduce((a, b) => a.length <= b.length ? a : b);
+  let prefix = '';
+  for (let i = 0; i < shortestPath.length; i++) {
+    const char = shortestPath[i];
+    if (paths.every(path => path[i] === char)) {
+      prefix += char;
+    } else {
+      break;
+    }
+  }
+  // Ensure prefix ends at a directory boundary
+  const lastSlash = prefix.lastIndexOf('/');
+  return lastSlash >= 0 ? prefix.substring(0, lastSlash + 1) : '';
+});
+
+// File options for the dropdown
+const fileOptions = computed(() => {
+  if (!jsonData.value?.files) return [];
+  const prefix = commonPrefix.value;
+  return Object.keys(jsonData.value.files)
+      .map(fullPath => ({
+        fullPath,
+        displayPath: prefix ? fullPath.substring(prefix.length) : fullPath
+      }))
+      .sort((a, b) => a.displayPath.localeCompare(b.displayPath)); // Optional: sort files alphabetically
 });
 
 const filteredData = computed(() => {
