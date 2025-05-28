@@ -9,7 +9,7 @@
       <div v-if="jsonData" class="mb-6">
         <div class="flex flex-col gap-4">
           <div class="flex flex-col md:flex-row gap-4">
-            <input v-model="searchQuery" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" placeholder="Search errors or files..." type="text" @input="saveFilters">
+            <input v-model="searchQuery" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" placeholder="Search errors or files (regex, e.g., error1, error2)" type="text" @input="saveFilters">
             <select v-model="filterType" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
               <option value="">All Error Types</option>
               <option v-for="type in errorTypes" :key="type" :value="type">{{ type }}</option>
@@ -43,6 +43,7 @@ const filterType = ref('');
 const filterFile = ref('');
 const excludeRegex = ref('');
 const regexError = ref('');
+const searchRegexError = ref('');
 const darkMode = ref(localStorage.getItem('darkMode') === 'true');
 
 // Load saved filters
@@ -70,39 +71,65 @@ const errorTypes = computed(() => {
 const filteredData = computed(() => {
   if (!jsonData.value) return null;
   const filtered = {...jsonData.value, files: {}};
-  let regexPatterns = [];
+
+  // Parse exclude regex patterns
+  let excludePatterns = [];
   try {
-    regexPatterns = excludeRegex.value
+    excludePatterns = excludeRegex.value
         .split(',')
         .map(pattern => pattern.trim())
         .filter(pattern => pattern)
         .map(pattern => new RegExp(pattern));
     regexError.value = '';
   } catch (error) {
-    regexError.value = 'Invalid regex pattern(s). Some patterns may be ignored.';
+    regexError.value = 'Invalid exclude regex pattern(s). Some patterns may be ignored.';
+  }
+
+  // Parse search regex patterns
+  let searchPatterns = [];
+  try {
+    searchPatterns = searchQuery.value
+        .split(',')
+        .map(pattern => pattern.trim())
+        .filter(pattern => pattern)
+        .map(pattern => new RegExp(pattern, 'i')); // Case-insensitive
+    searchRegexError.value = '';
+  } catch (error) {
+    searchRegexError.value = 'Invalid search regex pattern(s). Some patterns may be ignored.';
   }
 
   Object.entries(jsonData.value.files).forEach(([fileName, fileData]) => {
-    if (regexPatterns.some(regex => regex.test(fileName))) {
+    // Skip files matching any exclude regex
+    if (excludePatterns.some(regex => regex.test(fileName))) {
       return;
     }
+
     let messages = fileData.messages || [];
+
+    // Apply type filter
     if (filterType.value) {
       messages = messages.filter(error => error.message.includes(filterType.value));
     }
-    if (searchQuery.value) {
-      const query = searchQuery.value.toLowerCase();
-      messages = messages.filter(
-          error => error.message.toLowerCase().includes(query) || fileName.toLowerCase().includes(query)
+
+    // Apply search regex filter (OR condition)
+    if (searchPatterns.length > 0) {
+      messages = messages.filter(error =>
+          searchPatterns.some(regex =>
+              regex.test(error.message) || regex.test(fileName)
+          )
       );
     }
+
+    // Apply file filter
     if (filterFile.value && fileName !== filterFile.value) {
       return;
     }
+
     if (messages.length > 0) {
       filtered.files[fileName] = {...fileData, messages};
     }
   });
+
   return filtered;
 });
 
