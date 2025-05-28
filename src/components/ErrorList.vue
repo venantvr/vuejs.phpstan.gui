@@ -23,10 +23,17 @@
 <script setup>
 import {computed} from 'vue';
 
-defineProps(['jsonData']);
+// Define the jsonData prop
+const props = defineProps({
+  jsonData: {
+    type: Object,
+    default: null
+  }
+});
 
 const totalErrors = computed(() => {
-  return Object.values(jsonData.value?.files || {}).reduce(
+  if (!props.jsonData || !props.jsonData.files) return 0;
+  return Object.values(props.jsonData.files).reduce(
       (total, file) => total + (file.messages?.length || 0),
       0
   );
