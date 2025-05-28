@@ -13,14 +13,20 @@
               <input v-model="searchQuery" class="p-2 border rounded w-full dark:bg-gray-800 dark:border-gray-700" placeholder="Search errors or files (regex, e.g., error1, error2)" type="text" @input="saveFilters">
               <p v-if="searchRegexError" class="text-red-500 dark:text-red-400 text-sm mt-1">{{ searchRegexError }}</p>
             </div>
-            <select v-model="filterType" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
-              <option value="">All Error Types</option>
-              <option v-for="type in errorTypes" :key="type" :value="type">{{ type }}</option>
-            </select>
-            <select v-model="filterFile" class="p-2 border rounded w-full md:w-1/3 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
-              <option value="">All Files</option>
-              <option v-for="file in fileOptions" :key="file.fullPath" :value="file.fullPath">{{ file.displayPath }}</option>
-            </select>
+            <div class="w-full md:w-1/3">
+              <input v-model="searchTypeQuery" class="p-2 border rounded w-full dark:bg-gray-800 dark:border-gray-700" placeholder="Search error types..." type="text">
+              <select v-model="filterType" class="p-2 border rounded w-full mt-2 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
+                <option value="">All Error Types</option>
+                <option v-for="type in filteredErrorTypes" :key="type" :value="type">{{ type }}</option>
+              </select>
+            </div>
+            <div class="w-full md:w-1/3">
+              <input v-model="searchFileQuery" class="p-2 border rounded w-full dark:bg-gray-800 dark:border-gray-700" placeholder="Search files..." type="text">
+              <select v-model="filterFile" class="p-2 border rounded w-full mt-2 dark:bg-gray-800 dark:border-gray-700" @change="saveFilters">
+                <option value="">All Files</option>
+                <option v-for="file in filteredFileOptions" :key="file.fullPath" :value="file.fullPath">{{ file.displayPath }}</option>
+              </select>
+            </div>
           </div>
           <div>
             <label class="block mb-2 text-lg font-semibold">Exclude Directories (Regex, comma-separated)</label>
@@ -47,6 +53,8 @@ const filterFile = ref('');
 const excludeRegex = ref('');
 const regexError = ref('');
 const searchRegexError = ref('');
+const searchTypeQuery = ref(''); // Search query for error types
+const searchFileQuery = ref(''); // Search query for files
 const darkMode = ref(localStorage.getItem('darkMode') === 'true');
 
 // Load saved filters
@@ -57,6 +65,7 @@ filterFile.value = savedFilters.filterFile || '';
 excludeRegex.value = savedFilters.excludeRegex || '';
 
 const errorTypes = computed(() => {
+  console.log('Computing errorTypes', jsonData.value?.files); // Debug
   const types = new Set();
   if (jsonData.value?.files) {
     Object.values(jsonData.value.files).forEach(file => {
@@ -71,13 +80,19 @@ const errorTypes = computed(() => {
   return Array.from(types).sort(); // Sort alphabetically
 });
 
+// Filter error types based on searchTypeQuery
+const filteredErrorTypes = computed(() => {
+  if (!searchTypeQuery.value) return errorTypes.value;
+  const query = searchTypeQuery.value.toLowerCase();
+  return errorTypes.value.filter(type => type.toLowerCase().includes(query));
+});
+
 // Compute common prefix for file paths
 const commonPrefix = computed(() => {
   if (!jsonData.value?.files) return '';
   const paths = Object.keys(jsonData.value.files);
   if (paths.length === 0) return '';
 
-  // Find the shortest path to limit the prefix length
   const shortestPath = paths.reduce((a, b) => a.length <= b.length ? a : b);
   let prefix = '';
   for (let i = 0; i < shortestPath.length; i++) {
@@ -88,13 +103,13 @@ const commonPrefix = computed(() => {
       break;
     }
   }
-  // Ensure prefix ends at a directory boundary
   const lastSlash = prefix.lastIndexOf('/');
   return lastSlash >= 0 ? prefix.substring(0, lastSlash + 1) : '';
 });
 
 // File options for the dropdown
 const fileOptions = computed(() => {
+  console.log('Computing fileOptions', jsonData.value?.files); // Debug
   if (!jsonData.value?.files) return [];
   const prefix = commonPrefix.value;
   return Object.keys(jsonData.value.files)
@@ -102,14 +117,21 @@ const fileOptions = computed(() => {
         fullPath,
         displayPath: prefix ? fullPath.substring(prefix.length) : fullPath
       }))
-      .sort((a, b) => a.displayPath.localeCompare(b.displayPath)); // Optional: sort files alphabetically
+      .sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+});
+
+// Filter file options based on searchFileQuery
+const filteredFileOptions = computed(() => {
+  if (!searchFileQuery.value) return fileOptions.value;
+  const query = searchFileQuery.value.toLowerCase();
+  return fileOptions.value.filter(file => file.displayPath.toLowerCase().includes(query));
 });
 
 const filteredData = computed(() => {
+  console.log('Computing filteredData', jsonData.value); // Debug
   if (!jsonData.value) return null;
   const filtered = {...jsonData.value, files: {}};
 
-  // Parse exclude regex patterns
   let excludePatterns = [];
   try {
     excludePatterns = excludeRegex.value
@@ -122,33 +144,29 @@ const filteredData = computed(() => {
     regexError.value = 'Invalid exclude regex pattern(s). Some patterns may be ignored.';
   }
 
-  // Parse search regex patterns
   let searchPatterns = [];
   try {
     searchPatterns = searchQuery.value
         .split(',')
         .map(pattern => pattern.trim())
         .filter(pattern => pattern)
-        .map(pattern => new RegExp(pattern, 'i')); // Case-insensitive
+        .map(pattern => new RegExp(pattern, 'i'));
     searchRegexError.value = '';
   } catch (error) {
     searchRegexError.value = 'Invalid search regex pattern(s). Some patterns may be ignored.';
   }
 
   Object.entries(jsonData.value.files).forEach(([fileName, fileData]) => {
-    // Skip files matching any exclude regex
     if (excludePatterns.some(regex => regex.test(fileName))) {
       return;
     }
 
     let messages = fileData.messages || [];
 
-    // Apply type filter
     if (filterType.value) {
       messages = messages.filter(error => error.message.includes(filterType.value));
     }
 
-    // Apply search regex filter (OR condition)
     if (searchPatterns.length > 0) {
       messages = messages.filter(error =>
           searchPatterns.some(regex =>
@@ -157,7 +175,6 @@ const filteredData = computed(() => {
       );
     }
 
-    // Apply file filter
     if (filterFile.value && fileName !== filterFile.value) {
       return;
     }
@@ -171,13 +188,27 @@ const filteredData = computed(() => {
 });
 
 const handleFileLoaded = file => {
+  console.log('File loaded:', file); // Debug
+  if (!file) {
+    console.error('No file provided');
+    alert('Please select a file');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
+    console.log('File read:', e.target.result); // Debug
     try {
-      jsonData.value = JSON.parse(e.target.result);
+      const parsedData = JSON.parse(e.target.result);
+      console.log('Parsed JSON:', parsedData); // Debug
+      jsonData.value = parsedData;
     } catch (error) {
-      alert('Invalid JSON file');
+      console.error('JSON parse error:', error); // Debug
+      alert('Invalid JSON file: ' + error.message);
     }
+  };
+  reader.onerror = error => {
+    console.error('File read error:', error); // Debug
+    alert('Error reading file: ' + error.message);
   };
   reader.readAsText(file);
 };
