@@ -1,6 +1,13 @@
 <template>
   <div class="p-4">
     <h2 class="text-lg font-semibold mb-4">Preset Manager</h2>
+    <!-- Display last loaded preset -->
+    <p class="text-sm text-gray-300 mb-4">
+      Last loaded preset :
+    </p>
+    <p class="text-sm text-gray-300 mb-4">
+      {{ lastPresetName || 'None' }}
+    </p>
     <!-- Save Preset -->
     <div class="mb-4">
       <label class="block mb-2 text-sm font-medium">Preset Name</label>
@@ -52,6 +59,7 @@ const props = defineProps({
 const emit = defineEmits(['save-preset', 'load-preset']);
 
 const presetName = ref('');
+const lastPresetName = ref(''); // Store last loaded preset name
 const error = ref('');
 const fileInput = ref(null);
 
@@ -89,12 +97,12 @@ const loadPreset = (event) => {
       if (!preset.name || !preset.filters) {
         throw new Error('Invalid preset format');
       }
+      lastPresetName.value = preset.name; // Store preset name
       emit('load-preset', preset.filters);
       error.value = '';
     } catch (err) {
       error.value = 'Failed to load preset: ' + err.message;
     }
-    // Reset file input
     event.target.value = '';
   };
   reader.onerror = () => {
