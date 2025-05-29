@@ -1,6 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    content: ['./index.html', './src/**/*.{vue,js,ts}'],
+    content: [
+        './public/index.html',
+        './src/**/*.{vue,js,ts}',
+        './src/components/PresetManager.vue'
+    ],
     darkMode: 'class',
     theme: {
         extend: {},
