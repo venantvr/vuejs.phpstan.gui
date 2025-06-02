@@ -4,7 +4,10 @@
     <sidebar v-model:open="sidebarOpen">
       <div class="p-4">
         <h2 class="text-lg font-semibold mb-4">Menu</h2>
-        <p>Custom sidebar content goes here.</p>
+        <nav>
+          <router-link class="block py-2 px-4 hover:bg-gray-700 rounded" to="/">Home</router-link>
+          <router-link class="block py-2 px-4 hover:bg-gray-700 rounded" to="/phpstan">PHPStan Viewer</router-link>
+        </nav>
       </div>
     </sidebar>
     <!-- Main Content -->

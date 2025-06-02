@@ -4,7 +4,8 @@ module.exports = {
         './public/index.html',
         './src/**/*.{vue,js,ts}',
         './src/components/*.vue',
-        './src/views/*.vue'
+        './src/views/*.vue',
+        './src/views/phpstan/*.vue'
     ],
     darkMode: 'class',
     theme: {
