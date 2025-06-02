@@ -3,7 +3,8 @@ module.exports = {
     content: [
         './public/index.html',
         './src/**/*.{vue,js,ts}',
-        './src/components/PresetManager.vue'
+        './src/components/*.vue',
+        './src/views/*.vue'
     ],
     darkMode: 'class',
     theme: {
